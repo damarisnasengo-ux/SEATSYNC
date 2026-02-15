@@ -1,5 +1,4 @@
 
-// Import types from types.ts and constants from constants.ts to resolve compilation errors
 import { Booking, BookingStatus, Venue, User, UserRole } from '../types';
 import { INITIAL_VENUES, MOCK_USERS } from '../constants';
 
@@ -9,7 +8,8 @@ let dbBookings: any[] = [
     id: 'b1', 
     userId: 'u1', 
     venueId: 'v1', 
-    purpose: 'Advanced Algorithms', 
+    institutionId: 'inst-1',
+    purpose: 'Academic Senate Meeting', 
     date: new Date().toISOString().split('T')[0], 
     startTime: '09:00', 
     endTime: '11:00', 
@@ -19,21 +19,37 @@ let dbBookings: any[] = [
     id: 'b2', 
     userId: 'u2', 
     venueId: 'v2', 
-    purpose: 'Data Science Project', 
+    institutionId: 'inst-1',
+    purpose: 'Computer Science Practical', 
     date: new Date().toISOString().split('T')[0], 
     startTime: '14:00', 
     endTime: '16:00', 
     status: BookingStatus.PENDING 
+  },
+  { 
+    id: 'b3', 
+    userId: 'u4', 
+    venueId: 'v4', 
+    institutionId: 'inst-2',
+    purpose: 'Agriculture Symposium', 
+    date: new Date().toISOString().split('T')[0], 
+    startTime: '10:00', 
+    endTime: '12:00', 
+    status: BookingStatus.CONFIRMED 
   }
 ];
 
 export const mockApi = {
-  fetchVenues: async (): Promise<any[]> => {
-    return new Promise(resolve => setTimeout(() => resolve(INITIAL_VENUES), 600));
+  fetchVenues: async (institutionId: string): Promise<Venue[]> => {
+    return new Promise(resolve => setTimeout(() => {
+      resolve(INITIAL_VENUES.filter(v => v.institutionId === institutionId));
+    }, 600));
   },
 
-  fetchBookings: async (): Promise<any[]> => {
-    return new Promise(resolve => setTimeout(() => resolve(dbBookings), 800));
+  fetchBookings: async (institutionId: string): Promise<Booking[]> => {
+    return new Promise(resolve => setTimeout(() => {
+      resolve(dbBookings.filter(b => b.institutionId === institutionId));
+    }, 800));
   },
 
   checkConflict: (venueId: string, date: string, start: string, end: string): boolean => {
@@ -41,8 +57,6 @@ export const mockApi = {
     const requestedEnd = new Date(`${date}T${end}`);
 
     return dbBookings.some(booking => {
-      // Conflicts only matter against CONFIRMED bookings for booking logic, 
-      // but we check PENDING too to prevent multiple overlaps waiting for approval.
       if (booking.venueId !== venueId || booking.date !== date || booking.status === BookingStatus.CANCELLED) return false;
       const bStart = new Date(`${date}T${booking.startTime}`);
       const bEnd = new Date(`${date}T${booking.endTime}`);
@@ -61,7 +75,6 @@ export const mockApi = {
     const newBooking: Booking = {
       ...booking,
       id: `b${Date.now()}`,
-      // Only Admin bookings are CONFIRMED immediately.
       status: role === UserRole.ADMIN ? BookingStatus.CONFIRMED : BookingStatus.PENDING,
     };
     dbBookings.push(newBooking);
