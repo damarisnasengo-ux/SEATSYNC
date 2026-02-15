@@ -77,7 +77,7 @@ export const AppLayout: React.FC<LayoutProps> = ({ children, activeTab, onTabCha
         </main>
 
         {/* Navigation */}
-        <nav className="absolute bottom-0 left-0 right-0 bg-white/40 dark:bg-[#021019]/80 backdrop-blur-xl border-t border-slate-100/50 dark:border-slate-900 flex justify-around items-center px-2 py-3 safe-bottom z-50 transition-colors duration-500">
+        <nav className="absolute bottom-0 left-0 right-0 bg-white/40 dark:bg-[#021019]/80 backdrop-blur-xl border-t border-slate-100/50 dark:border-slate-900 flex justify-around items-center px-1 py-3 safe-bottom z-50 transition-colors duration-500">
           <NavButton 
             active={activeTab === 'home'} 
             onClick={() => onTabChange('home')}
@@ -95,30 +95,20 @@ export const AppLayout: React.FC<LayoutProps> = ({ children, activeTab, onTabCha
           />
 
           <NavButton 
+            active={activeTab === 'chat'} 
+            onClick={() => onTabChange('chat')}
+            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>}
+            label="Chat"
+            roleColor={roleColor}
+          />
+
+          <NavButton 
             active={activeTab === 'my-bookings'} 
             onClick={() => onTabChange('my-bookings')}
             icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>}
             label="Mine"
             roleColor={roleColor}
           />
-
-          {isAdmin ? (
-            <NavButton 
-              active={activeTab === 'approvals'} 
-              onClick={() => onTabChange('approvals')}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-              label="Review"
-              roleColor={roleColor}
-            />
-          ) : (
-            <NavButton 
-              active={activeTab === 'schedule'} 
-              onClick={() => onTabChange('schedule')}
-              icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-              label="Plan"
-              roleColor={roleColor}
-            />
-          )}
 
           <NavButton 
             active={activeTab === 'profile'} 

@@ -61,3 +61,22 @@ export interface AppState {
   loading: boolean;
   error: string | null;
 }
+
+// Chat types
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  text: string;
+  timestamp: string;
+  role: UserRole;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  lastMessage: string;
+  lastTimestamp: string;
+  type: 'channel' | 'direct';
+  participants: string[]; // User IDs
+  targetRole?: UserRole; // For "Vertical" role-based channels
+}

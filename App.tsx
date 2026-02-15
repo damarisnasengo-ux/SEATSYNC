@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, UserRole, Venue, Booking, BookingStatus, Institution } from './types';
+import { User, UserRole, Venue, Booking, BookingStatus, Institution, ChatMessage, Conversation } from './types';
 import { AppLayout } from './components/Layout';
 import { Card, Button, Input, Badge, Avatar } from './components/UI';
-import { MOCK_USERS, ROLE_COLORS, MOCK_INSTITUTIONS } from './constants';
+import { MOCK_USERS, ROLE_COLORS, MOCK_INSTITUTIONS, INITIAL_CONVERSATIONS, MOCK_MESSAGES } from './constants';
 import { mockApi } from './services/mockApi';
 
 export default function App() {
@@ -20,6 +20,10 @@ export default function App() {
     const saved = localStorage.getItem('seatsync_theme');
     return saved === 'dark';
   });
+
+  // Chat States
+  const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>(MOCK_MESSAGES);
+  const [selectedChat, setSelectedChat] = useState<string | null>(null);
 
   // Auth States
   const [email, setEmail] = useState('');
@@ -91,6 +95,21 @@ export default function App() {
     }
   };
 
+  const handleSendMessage = (conversationId: string, text: string) => {
+    if (!currentUser) return;
+    const newMessage: ChatMessage = {
+      id: `m${Date.now()}`,
+      senderId: currentUser.id,
+      text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      role: currentUser.role
+    };
+    setChatMessages(prev => ({
+      ...prev,
+      [conversationId]: [...(prev[conversationId] || []), newMessage]
+    }));
+  };
+
   const toggleDarkMode = () => setDarkMode(prev => !prev);
 
   if (showSplash) {
@@ -124,7 +143,6 @@ export default function App() {
               key={inst.id}
               onClick={() => {
                 setSelectedInstitution(inst);
-                // Pre-fill with admin by default for demo
                 const adminUser = MOCK_USERS.find(u => u.institutionId === inst.id && u.role === UserRole.ADMIN);
                 if (adminUser) setEmail(adminUser.email);
               }}
@@ -302,6 +320,15 @@ export default function App() {
           onNavigateHome={() => setActiveTab('home')}
         />
       )}
+      {activeTab === 'chat' && (
+        <ChatView 
+          user={currentUser} 
+          messages={chatMessages} 
+          onSend={handleSendMessage}
+          selectedChat={selectedChat}
+          onSelectChat={setSelectedChat}
+        />
+      )}
       {activeTab === 'my-bookings' && (
         <MyBookingsView 
           user={currentUser} 
@@ -310,15 +337,6 @@ export default function App() {
           onCancel={handleCancel}
         />
       )}
-      {activeTab === 'approvals' && currentUser.role === UserRole.ADMIN && (
-        <ApprovalsView 
-          bookings={bookings} 
-          venues={venues} 
-          onApprove={handleApprove} 
-          onReject={handleReject} 
-        />
-      )}
-      {activeTab === 'schedule' && <ScheduleView bookings={bookings} venues={venues} role={currentUser.role} />}
       {activeTab === 'profile' && (
         <ProfileView 
           user={currentUser} 
@@ -330,6 +348,130 @@ export default function App() {
         />
       )}
     </AppLayout>
+  );
+}
+
+// --- CHAT VIEW ---
+function ChatView({ user, messages, onSend, selectedChat, onSelectChat }: { 
+  user: User; 
+  messages: Record<string, ChatMessage[]>; 
+  onSend: (id: string, text: string) => void;
+  selectedChat: string | null;
+  onSelectChat: (id: string | null) => void;
+}) {
+  const [inputText, setInputText] = useState('');
+
+  // Horizontal communication: Channels same users can access
+  // Vertical communication: Interaction between students/admins or roles
+  const conversations = INITIAL_CONVERSATIONS.filter(c => {
+    if (user.role === UserRole.STUDENT) return c.targetRole === UserRole.STUDENT || c.targetRole === UserRole.ADMIN;
+    if (user.role === UserRole.LECTURER) return c.targetRole !== UserRole.CLASS_REP;
+    return true; // Admins see everything
+  });
+
+  const activeMessages = selectedChat ? messages[selectedChat] || [] : [];
+  const currentChatInfo = conversations.find(c => c.id === selectedChat);
+
+  const handleSendMessage = () => {
+    if (inputText.trim() && selectedChat) {
+      onSend(selectedChat, inputText.trim());
+      setInputText('');
+    }
+  };
+
+  if (selectedChat) {
+    return (
+      <div className="h-full flex flex-col animate-fadeIn">
+        <div className="flex items-center gap-4 py-4 sticky top-0 bg-[#FFFFD0]/90 dark:bg-[#021019]/90 backdrop-blur-sm z-10">
+          <button onClick={() => onSelectChat(null)} className="p-2 rounded-xl bg-white dark:bg-white/5">
+            <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <div>
+            <h3 className="font-black text-[#043C5C] dark:text-slate-100 leading-tight">{currentChatInfo?.title}</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {currentChatInfo?.type === 'channel' ? 'Public Room' : 'Direct Sync'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-4 py-4 overflow-y-auto">
+          {activeMessages.map((msg, i) => {
+            const isMe = msg.senderId === user.id;
+            const sender = MOCK_USERS.find(u => u.id === msg.senderId);
+            return (
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-slideUp`}>
+                <div className={`flex gap-3 max-w-[85%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {!isMe && <Avatar src={sender?.avatar} size="sm" role={msg.role} />}
+                  <div>
+                    {!isMe && <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1 ml-1">{sender?.name}</p>}
+                    <div 
+                      className={`p-4 rounded-2xl shadow-sm ${isMe ? 'bg-[#043C5C] text-white rounded-tr-none' : 'bg-white dark:bg-white/5 text-[#043C5C] dark:text-slate-200 rounded-tl-none'}`}
+                      style={isMe ? { backgroundColor: ROLE_COLORS[user.role] } : {}}
+                    >
+                      <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
+                      <p className={`text-[9px] mt-2 opacity-50 font-bold ${isMe ? 'text-right' : 'text-left'}`}>{msg.timestamp}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="sticky bottom-4 bg-white/50 dark:bg-white/5 backdrop-blur-xl p-3 rounded-[2rem] border border-black/5 dark:border-white/5 flex gap-2 items-center">
+          <input 
+            value={inputText}
+            onChange={e => setInputText(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+            placeholder="Type your message..."
+            className="flex-1 bg-transparent px-4 py-2 focus:outline-none text-slate-800 dark:text-slate-100 font-medium"
+          />
+          <button 
+            onClick={handleSendMessage}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg transition-transform active:scale-90"
+            style={{ backgroundColor: ROLE_COLORS[user.role] }}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-4 animate-fadeIn">
+      <div className="mb-8 mt-2">
+        <h3 className="text-3xl font-black text-[#043C5C] dark:text-slate-100 tracking-tight">Sync Space</h3>
+        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Cross-Campus Communication</p>
+      </div>
+
+      <div className="space-y-4">
+        {conversations.map(conv => (
+          <div 
+            key={conv.id}
+            onClick={() => onSelectChat(conv.id)}
+            className="group bg-white/60 dark:bg-white/5 p-5 rounded-[2.5rem] border border-black/5 dark:border-white/5 cursor-pointer hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-4 shadow-sm"
+          >
+            <div 
+              className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg group-hover:rotate-6 transition-transform"
+              style={{ backgroundColor: conv.targetRole ? ROLE_COLORS[conv.targetRole] : '#CBD5E1' }}
+            >
+              {conv.type === 'channel' ? '#' : conv.title[0]}
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <div className="flex justify-between items-center mb-1">
+                <h4 className="font-black text-[#043C5C] dark:text-slate-100 truncate">{conv.title}</h4>
+                <span className="text-[9px] font-bold text-slate-400 uppercase">{conv.lastTimestamp}</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate font-medium">{conv.lastMessage}</p>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+               <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -364,7 +506,7 @@ function HomeView({ user, venues, bookings, onApprove, onReject, onTabChange }: 
               <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: roleColor }}></span>
               Review Queue
             </h3>
-            <button onClick={() => onTabChange('approvals')} className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">See All</button>
+            <button onClick={() => onTabChange('chat')} className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Sync with Ops</button>
           </div>
           <div className="space-y-3">
             {pendingBookings.slice(0, 1).map(booking => (
@@ -379,7 +521,9 @@ function HomeView({ user, venues, bookings, onApprove, onReject, onTabChange }: 
                   <Badge type="warning">Review</Badge>
                 </div>
                 <div className="flex gap-2">
+                  {/* Fixed: Use onApprove prop instead of handleApprove */}
                   <Button onClick={() => onApprove(booking.id)} className="flex-1 !py-2.5 !text-xs">Approve</Button>
+                  {/* Fixed: Use onReject prop instead of handleReject */}
                   <Button onClick={() => onReject(booking.id)} variant="outline" className="flex-1 !py-2.5 !text-xs">Decline</Button>
                 </div>
               </Card>
@@ -388,9 +532,10 @@ function HomeView({ user, venues, bookings, onApprove, onReject, onTabChange }: 
         </section>
       )}
 
+      {/* Schedule/Approvals Matrix integrated into Home for cleaner Nav */}
       <section className="animate-slideUp" style={{ animationDelay: '0.1s' }}>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Active Schedule</h3>
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Global Pulse</h3>
         </div>
         <div className="space-y-4">
           {activeBookings.length > 0 ? (
@@ -477,86 +622,6 @@ function MyBookingsView({ user, venues, bookings, onCancel }: {
               </Card>
             );
           })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ApprovalsView({ bookings, venues, onApprove, onReject }: { 
-  bookings: Booking[]; 
-  venues: Venue[]; 
-  onApprove: (id: string) => void; 
-  onReject: (id: string) => void;
-}) {
-  const pending = bookings.filter(b => b.status === BookingStatus.PENDING);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-
-  const handleAction = async (id: string, action: 'approve' | 'reject') => {
-    setConfirmingId(id);
-    if (action === 'approve') await onApprove(id);
-    else await onReject(id);
-    setConfirmingId(null);
-  };
-  
-  return (
-    <div className="py-4 animate-fadeIn">
-      <div className="mb-8 mt-2">
-        <h3 className="text-3xl font-black text-[#043C5C] dark:text-slate-100 tracking-tight leading-none">Review Desk</h3>
-        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-          Pending Authorizations
-        </p>
-      </div>
-
-      {pending.length === 0 ? (
-        <div className="py-24 text-center bg-white/40 dark:bg-slate-900/40 rounded-[3rem] border-2 border-dashed border-black/5 flex flex-col items-center gap-6">
-          <div className="w-20 h-20 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-500 animate-successCheck">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-          </div>
-          <p className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Queue Clear</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {pending.map(booking => (
-            <Card key={booking.id} role={UserRole.ADMIN} className="p-6 border-l-8 animate-slideUp group relative overflow-hidden">
-              <div className="relative z-10">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h4 className="text-xl font-black text-[#043C5C] dark:text-slate-100 leading-tight mb-2 group-hover:text-blue-500 transition-colors">{booking.purpose}</h4>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
-                        {venues.find(v => v.id === booking.venueId)?.name}
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3"/></svg>
-                        {booking.startTime} - {booking.endTime}
-                      </div>
-                    </div>
-                  </div>
-                  <Avatar size="sm" role={UserRole.ADMIN} />
-                </div>
-                <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-black/5 dark:border-white/5">
-                  <Button 
-                    onClick={() => handleAction(booking.id, 'approve')} 
-                    disabled={confirmingId === booking.id}
-                    className="!py-3 !text-[11px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20"
-                  >
-                    {confirmingId === booking.id ? 'Authorizing...' : 'Authorize'}
-                  </Button>
-                  <Button 
-                    onClick={() => handleAction(booking.id, 'reject')} 
-                    disabled={confirmingId === booking.id}
-                    variant="outline" 
-                    className="!py-3 !text-[11px] font-black uppercase tracking-widest !text-rose-500 !border-rose-100 dark:!border-white/5"
-                  >
-                    Decline
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
         </div>
       )}
     </div>
@@ -789,41 +854,6 @@ function BookView({ venues, bookings, onBooked, user, institutionId, onNavigateH
           {isSubmitting ? 'Recording...' : 'Request Slot'}
         </Button>
       </form>
-    </div>
-  );
-}
-
-function ScheduleView({ bookings, venues, role }: { bookings: Booking[]; venues: Venue[]; role: UserRole }) {
-  const roleColor = ROLE_COLORS[role];
-  return (
-    <div className="py-4 animate-fadeIn">
-      <div className="mb-8 mt-2">
-        <h3 className="text-3xl font-black text-[#043C5C] dark:text-slate-100 tracking-tight leading-none">Global Pulse</h3>
-        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
-           Daily Campus Matrix
-        </p>
-      </div>
-
-      <div className="space-y-6 relative pl-8 border-l-2 border-slate-100 dark:border-white/5 ml-2">
-        {bookings.filter(b => b.status === BookingStatus.CONFIRMED).map(slot => (
-          <div key={slot.id} className="relative py-2 animate-slideUp">
-            <div 
-              className="absolute -left-[41px] top-6 w-5 h-5 rounded-full border-[6px] border-[#FFFFD0] dark:border-[#021019] shadow-lg" 
-              style={{ backgroundColor: roleColor }}
-            ></div>
-            <Card role={role} className="p-5 bg-white/80 dark:bg-slate-900/60 shadow-md">
-              <span className="text-[10px] font-black uppercase tracking-widest block mb-2" style={{ color: roleColor }}>{slot.startTime}</span>
-              <h4 className="text-lg font-bold text-[#043C5C] dark:text-slate-100 leading-tight mb-1">{slot.purpose}</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{venues.find(v => v.id === slot.venueId)?.name}</p>
-            </Card>
-          </div>
-        ))}
-        {bookings.filter(b => b.status === BookingStatus.CONFIRMED).length === 0 && (
-           <div className="py-12 pl-4 text-slate-400 font-bold uppercase text-[10px] tracking-widest italic">
-              No active events scheduled
-           </div>
-        )}
-      </div>
     </div>
   );
 }

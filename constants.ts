@@ -1,5 +1,5 @@
 
-import { Institution, UserRole } from './types';
+import { Institution, UserRole, ChatMessage, Conversation } from './types';
 
 export const COLORS = {
   primary: '#043C5C', 
@@ -90,4 +90,27 @@ export const TRANSITIONS = {
   standard: 'transition-all duration-300 ease-in-out',
   slow: 'transition-all duration-500 ease-in-out',
   fast: 'transition-all duration-150 ease-in-out',
+};
+
+// Initial Mock Chats
+export const INITIAL_CONVERSATIONS: Conversation[] = [
+  { id: 'c1', title: 'Academic Plaza (General)', lastMessage: 'Please ensure Taifa Hall is clear by 10 AM.', lastTimestamp: '10:45 AM', type: 'channel', participants: [], targetRole: UserRole.STUDENT },
+  { id: 'c2', title: 'Lecturers Lounge', lastMessage: 'Exam schedules for next week are ready.', lastTimestamp: '09:30 AM', type: 'channel', participants: [], targetRole: UserRole.LECTURER },
+  { id: 'c3', title: 'Admin Support Desk', lastMessage: 'We received your booking request.', lastTimestamp: 'Yesterday', type: 'direct', participants: [], targetRole: UserRole.ADMIN },
+  { id: 'c4', title: 'Class Rep Hub', lastMessage: 'Meeting tomorrow at MPH.', lastTimestamp: '08:15 AM', type: 'channel', participants: [], targetRole: UserRole.CLASS_REP },
+];
+
+export const MOCK_MESSAGES: Record<string, ChatMessage[]> = {
+  'c1': [
+    { id: 'm1', senderId: 'u1', text: 'Good morning everyone. Campus venues are open.', timestamp: '08:00 AM', role: UserRole.ADMIN },
+    { id: 'm2', senderId: 'u4', text: 'Is Taifa Hall available for the gala?', timestamp: '08:05 AM', role: UserRole.STUDENT },
+    { id: 'm3', senderId: 'u1', text: 'Please check the live registry in the Book tab.', timestamp: '08:07 AM', role: UserRole.ADMIN },
+  ],
+  'c2': [
+    { id: 'm4', senderId: 'u2', text: 'Did anyone find a flash drive in Gandhi Wing?', timestamp: '09:00 AM', role: UserRole.LECTURER },
+    { id: 'm5', senderId: 'u6', text: 'I think the janitors have it at the reception.', timestamp: '09:15 AM', role: UserRole.LECTURER },
+  ],
+  'c3': [
+    { id: 'm6', senderId: 'u1', text: 'How can I assist you with your venue sync today?', timestamp: 'Yesterday', role: UserRole.ADMIN },
+  ]
 };
