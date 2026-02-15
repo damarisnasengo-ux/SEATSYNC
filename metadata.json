@@ -1,0 +1,7 @@
+{
+  "name": "Copy of SeatSync MVP",
+  "description": "A production-ready campus venue booking and scheduling system featuring real-time conflict checking, role-based access control, and a modern academic UI system derived from SeatSync brand assets.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
