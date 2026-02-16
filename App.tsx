@@ -21,11 +21,9 @@ export default function App() {
     return saved === 'dark';
   });
 
-  // Chat States
   const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>(MOCK_MESSAGES);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
 
-  // Auth States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('password');
 
@@ -128,7 +126,6 @@ export default function App() {
     );
   }
 
-  // Institutional Selection Flow
   if (!selectedInstitution) {
     return (
       <div className={`flex flex-col h-screen max-w-md mx-auto p-6 md:p-10 transition-colors duration-500 overflow-y-auto ${darkMode ? 'bg-[#021019] text-white' : 'bg-[#FFFFD0]'}`}>
@@ -172,7 +169,6 @@ export default function App() {
     );
   }
 
-  // Institutional Login Screen
   if (!currentUser) {
     const institutionUsers = MOCK_USERS
       .filter(u => u.institutionId === selectedInstitution.id)
@@ -285,7 +281,6 @@ export default function App() {
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-shimmer z-[100]"></div>
       )}
 
-      {/* Persistent Campus Breadcrumb */}
       <div className="mt-6 mb-2 flex items-center justify-between px-2">
         <div className="flex items-center gap-3 bg-white/50 dark:bg-slate-900/40 py-2 px-3 rounded-full border border-black/5 dark:border-white/5 backdrop-blur-sm">
           <div 
@@ -351,7 +346,374 @@ export default function App() {
   );
 }
 
-// --- CHAT VIEW ---
+// --- SUB-VIEWS ---
+
+function HomeView({ user, venues, bookings, onApprove, onReject, onTabChange }: { 
+  user: User; 
+  venues: Venue[]; 
+  bookings: Booking[];
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  onTabChange: (tab: string) => void;
+}) {
+  const activeBookings = bookings.filter(b => b.status === BookingStatus.CONFIRMED);
+  const pendingBookings = bookings.filter(b => b.status === BookingStatus.PENDING);
+  const isAdmin = user.role === UserRole.ADMIN;
+  const roleColor = ROLE_COLORS[user.role];
+
+  return (
+    <div className="py-2 animate-fadeIn space-y-8">
+      <div className="grid grid-cols-3 gap-3 mt-4">
+        <StatCard label="Campus Venues" val={venues.length.toString()} color={roleColor} />
+        <StatCard label="Live Now" val={activeBookings.length.toString()} color="#10B981" />
+        <StatCard label="In Queue" val={pendingBookings.length.toString()} color="#FB923C" />
+      </div>
+
+      {isAdmin && pendingBookings.length > 0 && (
+        <section className="animate-slideUp">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xs font-black text-[#043C5C] dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: roleColor }}></span>
+              Review Queue
+            </h3>
+            <button onClick={() => onTabChange('chat')} className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Sync with Ops</button>
+          </div>
+          <div className="space-y-3">
+            {pendingBookings.slice(0, 3).map(booking => (
+              <Card key={booking.id} role={UserRole.ADMIN} className="border-l-4 shadow-md bg-white dark:bg-slate-900/60 p-5">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="max-w-[70%]">
+                    <h4 className="font-bold text-[#043C5C] dark:text-slate-100 text-lg leading-tight">{booking.purpose}</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                      {venues.find(v => v.id === booking.venueId)?.name}
+                    </p>
+                  </div>
+                  <Badge type="warning">Review</Badge>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => onApprove(booking.id)} className="flex-1 !py-2.5 !text-xs">Approve</Button>
+                  <Button onClick={() => onReject(booking.id)} variant="outline" className="flex-1 !py-2.5 !text-xs">Decline</Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="animate-slideUp" style={{ animationDelay: '0.1s' }}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Global Pulse</h3>
+        </div>
+        <div className="space-y-4">
+          {activeBookings.length > 0 ? (
+            activeBookings.map(booking => (
+              <Card key={booking.id} role={user.role} className="border-l-4 bg-white/80 dark:bg-slate-900/60 p-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="font-bold text-[#043C5C] dark:text-slate-100">{booking.purpose}</h4>
+                    <div className="flex items-center gap-3 mt-1">
+                       <span className="text-[10px] font-bold text-slate-400 uppercase">{venues.find(v => v.id === booking.venueId)?.name}</span>
+                       <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{booking.startTime} - {booking.endTime}</span>
+                    </div>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                </div>
+              </Card>
+            ))
+          ) : (
+            <div className="py-16 text-center bg-white/30 dark:bg-white/5 rounded-[2rem] border-2 border-dashed border-black/5 dark:border-white/5">
+               <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest">No active sessions right now</p>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function BookView({ venues, bookings, onBooked, user, institutionId, onNavigateHome }: { 
+  venues: Venue[]; 
+  bookings: Booking[]; 
+  onBooked: () => void; 
+  user: User; 
+  institutionId: string;
+  onNavigateHome: () => void 
+}) {
+  const [selectedVenue, setSelectedVenue] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [start, setStart] = useState('09:00');
+  const [end, setEnd] = useState('11:00');
+  const [purpose, setPurpose] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [frequency, setFrequency] = useState<'daily' | 'weekly'>('weekly');
+  const [recurringEndDate, setRecurringEndDate] = useState('');
+  const [selectedDays, setSelectedDays] = useState<number[]>([new Date().getDay()]); 
+
+  const [conflictingDates, setConflictingDates] = useState<string[]>([]);
+
+  const toggleDay = (day: number) => {
+    setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+  };
+
+  const requestedDates = useMemo(() => {
+    const dates: string[] = [];
+    let current = new Date(date);
+    
+    if (!isRecurring) {
+      dates.push(date);
+      return dates;
+    }
+
+    if (!recurringEndDate) return [date];
+
+    const endBoundary = new Date(recurringEndDate);
+    const safetyLimit = new Date(current);
+    safetyLimit.setMonth(safetyLimit.getMonth() + 3); 
+    const finalEnd = endBoundary < safetyLimit ? endBoundary : safetyLimit;
+
+    while (current <= finalEnd) {
+      const isoDate = current.toISOString().split('T')[0];
+      if (frequency === 'daily' || (frequency === 'weekly' && selectedDays.includes(current.getDay()))) {
+        dates.push(isoDate);
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  }, [date, isRecurring, recurringEndDate, frequency, selectedDays]);
+
+  useEffect(() => {
+    if (selectedVenue && start && end) {
+      const conflicts: string[] = [];
+      requestedDates.forEach(d => {
+        if (mockApi.checkConflict(selectedVenue, d, start, end)) {
+          conflicts.push(d);
+        }
+      });
+      setConflictingDates(conflicts);
+    } else {
+      setConflictingDates([]);
+    }
+  }, [selectedVenue, requestedDates, start, end]);
+
+  const venueStatuses = useMemo(() => {
+    if (!start || !end) return venues.map(v => ({ id: v.id, name: v.name, status: 'AVAILABLE' }));
+
+    return venues.map(v => {
+      const conflictDate = requestedDates.find(d => mockApi.checkConflict(v.id, d, start, end));
+      return { 
+        id: v.id, 
+        name: v.name, 
+        status: conflictDate ? 'TAKEN' : 'AVAILABLE' 
+      };
+    });
+  }, [venues, requestedDates, start, end]);
+
+  const handleBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVenue || !purpose) return;
+    if (conflictingDates.length > 0) return;
+    
+    setIsSubmitting(true);
+    try {
+      if (isRecurring) {
+        await mockApi.createRecurringBooking({
+          userId: user.id,
+          venueId: selectedVenue,
+          institutionId: institutionId,
+          startTime: start,
+          endTime: end,
+          purpose
+        }, requestedDates, user.role);
+      } else {
+        await mockApi.createBooking({
+          userId: user.id,
+          venueId: selectedVenue,
+          institutionId: institutionId,
+          date,
+          startTime: start,
+          endTime: end,
+          purpose
+        }, user.role);
+      }
+      
+      await new Promise(r => setTimeout(r, 800));
+      setIsSubmitting(false);
+      setIsSuccess(true);
+      onBooked();
+      setTimeout(() => onNavigateHome(), 2500);
+      
+    } catch (err: any) {
+      alert(err.message);
+      setIsSubmitting(false);
+    }
+  };
+
+  const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  if (isSuccess) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center animate-fadeIn text-center p-8 bg-white/20 dark:bg-black/20 rounded-[3rem] border border-black/5 mt-6">
+        <div className="w-24 h-24 rounded-[2.5rem] bg-emerald-500 text-white flex items-center justify-center shadow-2xl animate-successCheck mb-8">
+          <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+        </div>
+        <h2 className="text-4xl font-black text-[#043C5C] dark:text-slate-100 tracking-tighter mb-4">Success</h2>
+        <p className="text-slate-500 dark:text-slate-400 font-medium max-w-[200px] leading-relaxed">
+          Your registry entry has been confirmed.
+        </p>
+        <div className="mt-12 flex flex-col w-full gap-4 animate-slideUp">
+          <Button variant="primary" onClick={onNavigateHome} className="shadow-2xl font-black uppercase tracking-widest py-4">Dashboard</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-4 animate-slideUp">
+      <div className="mb-8 mt-2">
+        <h3 className="text-3xl font-black text-[#043C5C] dark:text-slate-100 tracking-tight">Reserve Slot</h3>
+        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Campus Venue Registry</p>
+      </div>
+
+      <section className="mb-10 p-5 bg-white/60 dark:bg-slate-900/40 rounded-[2.5rem] border border-black/5 shadow-sm">
+        <div className="flex items-center justify-between mb-5 px-1">
+          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Availability Summary</h4>
+          <div className="flex gap-4">
+            <LegendItem dot="#10B981" label="Available" />
+            <LegendItem dot="#FB923C" label="Busy" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {venueStatuses.map(vs => (
+            <div 
+              key={vs.id} 
+              onClick={() => setSelectedVenue(vs.id)}
+              className={`h-16 rounded-2xl flex flex-col items-center justify-center relative cursor-pointer transition-all duration-300 hover:scale-[1.05] active:scale-95 border-2 ${selectedVenue === vs.id ? 'border-blue-500 bg-blue-500/10' : 'border-transparent'}`}
+              style={{ backgroundColor: vs.status === 'AVAILABLE' ? '#10B98110' : '#FB923C10' }}
+            >
+              <div className={`w-2 h-2 rounded-full mb-2 ${vs.status === 'AVAILABLE' ? 'bg-emerald-500' : 'bg-orange-500'}`}></div>
+              <span className="text-[9px] font-black text-slate-500 dark:text-slate-300 uppercase truncate px-2 w-full text-center">{vs.name.split(' ').pop()}</span>
+              {vs.status === 'TAKEN' && <div className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-[8px] flex items-center justify-center rounded-full font-black">!</div>}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <form onSubmit={handleBooking} className="space-y-6 pb-10">
+        <div className="space-y-2">
+          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-2">Select Venue</label>
+          <select 
+            value={selectedVenue} 
+            onChange={e => setSelectedVenue(e.target.value)}
+            className="w-full bg-white dark:bg-slate-900 border border-black/5 dark:border-white/5 rounded-2xl px-5 py-4 text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/10 appearance-none shadow-sm"
+          >
+            <option value="">Choose...</option>
+            {venues.map(v => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Start Date" type="date" value={date} onChange={setDate} />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Recurrence</label>
+            <button 
+              type="button"
+              onClick={() => setIsRecurring(!isRecurring)}
+              className={`flex items-center justify-between w-full h-[50px] px-4 rounded-xl border transition-all ${isRecurring ? 'bg-blue-500/10 border-blue-500 text-blue-600' : 'bg-white dark:bg-slate-900 border-black/5 dark:border-white/5 text-slate-400'}`}
+            >
+              <span className="text-xs font-bold uppercase">{isRecurring ? 'Series' : 'Single'}</span>
+              <div className={`w-4 h-4 rounded-full border-2 border-current flex items-center justify-center`}>
+                {isRecurring && <div className="w-2 h-2 rounded-full bg-current"></div>}
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {isRecurring && (
+          <div className="animate-fadeIn p-5 bg-[#043C5C]/5 dark:bg-slate-900 rounded-[2rem] border border-black/5 dark:border-white/5 space-y-5">
+            <div className="flex gap-4">
+               <button 
+                type="button" 
+                onClick={() => setFrequency('daily')}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${frequency === 'daily' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white dark:bg-slate-800 border-black/5 text-slate-400'}`}
+               >
+                 Daily
+               </button>
+               <button 
+                type="button" 
+                onClick={() => setFrequency('weekly')}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${frequency === 'weekly' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white dark:bg-slate-800 border-black/5 text-slate-400'}`}
+               >
+                 Weekly
+               </button>
+            </div>
+
+            {frequency === 'weekly' && (
+              <div className="space-y-3">
+                <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest text-center">Repeat Every</p>
+                <div className="flex justify-between px-2">
+                  {dayLabels.map((label, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => toggleDay(i)}
+                      className={`w-8 h-8 rounded-full text-[10px] font-black flex items-center justify-center transition-all ${selectedDays.includes(i) ? 'bg-blue-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-400'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <Input label="Repeat Until" type="date" value={recurringEndDate} onChange={setRecurringEndDate} />
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="From" type="time" value={start} onChange={setStart} />
+          <Input label="To" type="time" value={end} onChange={setEnd} />
+        </div>
+        <Input label="Purpose" placeholder="e.g. CAT, Group Meeting..." value={purpose} onChange={setPurpose} />
+
+        {/* Detailed Conflict Alert Banner */}
+        {conflictingDates.length > 0 && (
+          <div className="animate-shake space-y-3">
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 flex items-start gap-4">
+               <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-lg">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+               </div>
+               <div className="flex-1">
+                  <h5 className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest">Schedule Conflict</h5>
+                  <p className="text-[10px] text-rose-500 font-medium mt-1 leading-relaxed">
+                    This venue is occupied during the requested time slot on the following date(s):
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {conflictingDates.map(d => (
+                      <span key={d} className="px-2 py-1 rounded-md bg-rose-500/10 text-rose-500 text-[9px] font-black border border-rose-500/20">{d}</span>
+                    ))}
+                  </div>
+               </div>
+            </div>
+          </div>
+        )}
+
+        <Button 
+          disabled={isSubmitting || conflictingDates.length > 0 || !selectedVenue || !purpose} 
+          type="submit" 
+          className="w-full !py-5 shadow-2xl mt-4 font-black uppercase tracking-[0.2em] text-lg rounded-[2rem]"
+        >
+          {isSubmitting ? 'Syncing...' : isRecurring ? `Request Series (${requestedDates.length})` : 'Request Slot'}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 function ChatView({ user, messages, onSend, selectedChat, onSelectChat }: { 
   user: User; 
   messages: Record<string, ChatMessage[]>; 
@@ -361,12 +723,10 @@ function ChatView({ user, messages, onSend, selectedChat, onSelectChat }: {
 }) {
   const [inputText, setInputText] = useState('');
 
-  // Horizontal communication: Channels same users can access
-  // Vertical communication: Interaction between students/admins or roles
   const conversations = INITIAL_CONVERSATIONS.filter(c => {
     if (user.role === UserRole.STUDENT) return c.targetRole === UserRole.STUDENT || c.targetRole === UserRole.ADMIN;
     if (user.role === UserRole.LECTURER) return c.targetRole !== UserRole.CLASS_REP;
-    return true; // Admins see everything
+    return true;
   });
 
   const activeMessages = selectedChat ? messages[selectedChat] || [] : [];
@@ -395,7 +755,7 @@ function ChatView({ user, messages, onSend, selectedChat, onSelectChat }: {
         </div>
 
         <div className="flex-1 space-y-4 py-4 overflow-y-auto">
-          {activeMessages.map((msg, i) => {
+          {activeMessages.map((msg) => {
             const isMe = msg.senderId === user.id;
             const sender = MOCK_USERS.find(u => u.id === msg.senderId);
             return (
@@ -471,95 +831,6 @@ function ChatView({ user, messages, onSend, selectedChat, onSelectChat }: {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-// --- VIEWS ---
-
-function HomeView({ user, venues, bookings, onApprove, onReject, onTabChange }: { 
-  user: User; 
-  venues: Venue[]; 
-  bookings: Booking[];
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  onTabChange: (tab: string) => void;
-}) {
-  const activeBookings = bookings.filter(b => b.status === BookingStatus.CONFIRMED);
-  const pendingBookings = bookings.filter(b => b.status === BookingStatus.PENDING);
-  const isAdmin = user.role === UserRole.ADMIN;
-  const roleColor = ROLE_COLORS[user.role];
-
-  return (
-    <div className="py-2 animate-fadeIn space-y-8">
-      {/* Dynamic Summary Cards */}
-      <div className="grid grid-cols-3 gap-3 mt-4">
-        <StatCard label="Campus Venues" val={venues.length.toString()} color={ROLE_COLORS[user.role]} />
-        <StatCard label="Live Now" val={activeBookings.length.toString()} color="#10B981" />
-        <StatCard label="In Queue" val={pendingBookings.length.toString()} color="#FB923C" />
-      </div>
-
-      {isAdmin && pendingBookings.length > 0 && (
-        <section className="animate-slideUp">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xs font-black text-[#043C5C] dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: roleColor }}></span>
-              Review Queue
-            </h3>
-            <button onClick={() => onTabChange('chat')} className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">Sync with Ops</button>
-          </div>
-          <div className="space-y-3">
-            {pendingBookings.slice(0, 1).map(booking => (
-              <Card key={booking.id} role={UserRole.ADMIN} className="border-l-4 shadow-md bg-white dark:bg-slate-900/60 p-5">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="max-w-[70%]">
-                    <h4 className="font-bold text-[#043C5C] dark:text-slate-100 text-lg leading-tight">{booking.purpose}</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                      {venues.find(v => v.id === booking.venueId)?.name}
-                    </p>
-                  </div>
-                  <Badge type="warning">Review</Badge>
-                </div>
-                <div className="flex gap-2">
-                  {/* Fixed: Use onApprove prop instead of handleApprove */}
-                  <Button onClick={() => onApprove(booking.id)} className="flex-1 !py-2.5 !text-xs">Approve</Button>
-                  {/* Fixed: Use onReject prop instead of handleReject */}
-                  <Button onClick={() => onReject(booking.id)} variant="outline" className="flex-1 !py-2.5 !text-xs">Decline</Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Schedule/Approvals Matrix integrated into Home for cleaner Nav */}
-      <section className="animate-slideUp" style={{ animationDelay: '0.1s' }}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Global Pulse</h3>
-        </div>
-        <div className="space-y-4">
-          {activeBookings.length > 0 ? (
-            activeBookings.map(booking => (
-              <Card key={booking.id} role={user.role} className="border-l-4 bg-white/80 dark:bg-slate-900/60 p-4">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-bold text-[#043C5C] dark:text-slate-100">{booking.purpose}</h4>
-                    <div className="flex items-center gap-3 mt-1">
-                       <span className="text-[10px] font-bold text-slate-400 uppercase">{venues.find(v => v.id === booking.venueId)?.name}</span>
-                       <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{booking.startTime} - {booking.endTime}</span>
-                    </div>
-                  </div>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                </div>
-              </Card>
-            ))
-          ) : (
-            <div className="py-16 text-center bg-white/30 dark:bg-white/5 rounded-[2rem] border-2 border-dashed border-black/5 dark:border-white/5">
-               <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest">No active sessions right now</p>
-            </div>
-          )}
-        </div>
-      </section>
     </div>
   );
 }
@@ -694,166 +965,3 @@ const LegendItem = ({ dot, label }: { dot: string; label: string }) => (
     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</span>
   </div>
 );
-
-function BookView({ venues, bookings, onBooked, user, institutionId, onNavigateHome }: { 
-  venues: Venue[]; 
-  bookings: Booking[]; 
-  onBooked: () => void; 
-  user: User; 
-  institutionId: string;
-  onNavigateHome: () => void 
-}) {
-  const [selectedVenue, setSelectedVenue] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [start, setStart] = useState('09:00');
-  const [end, setEnd] = useState('11:00');
-  const [purpose, setPurpose] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [error, setError] = useState('');
-  const [isConflict, setIsConflict] = useState(false);
-
-  // REAL-TIME AVAILABILITY UPDATE
-  const venueStatuses = useMemo(() => {
-    if (!date || !start || !end) return venues.map(v => ({ id: v.id, name: v.name, status: 'AVAILABLE' }));
-
-    const requestedStart = new Date(`${date}T${start}`);
-    const requestedEnd = new Date(`${date}T${end}`);
-
-    return venues.map(v => {
-      const hasConflict = bookings.some(b => {
-        if (b.venueId !== v.id || b.date !== date || b.status === BookingStatus.CANCELLED) return false;
-        
-        const bStart = new Date(`${date}T${b.startTime}`);
-        const bEnd = new Date(`${date}T${b.endTime}`);
-        
-        return (requestedStart < bEnd && requestedEnd > bStart);
-      });
-
-      return { 
-        id: v.id, 
-        name: v.name, 
-        status: hasConflict ? 'TAKEN' : 'AVAILABLE' 
-      };
-    });
-  }, [venues, bookings, date, start, end]);
-
-  useEffect(() => {
-    if (selectedVenue && date && start && end) {
-      const conflict = mockApi.checkConflict(selectedVenue, date, start, end);
-      setIsConflict(conflict);
-      setError(conflict ? 'Schedule Conflict: Venue is occupied.' : '');
-    }
-  }, [selectedVenue, date, start, end]);
-
-  const handleBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedVenue || !purpose) return setError('Please fill all fields');
-    if (isConflict) return;
-    
-    setIsSubmitting(true);
-    try {
-      await mockApi.createBooking({
-        userId: user.id,
-        venueId: selectedVenue,
-        institutionId: institutionId,
-        date,
-        startTime: start,
-        endTime: end,
-        purpose
-      }, user.role);
-      
-      await new Promise(r => setTimeout(r, 800));
-      setIsSubmitting(false);
-      setIsSuccess(true);
-      onBooked();
-      setTimeout(() => onNavigateHome(), 2500);
-      
-    } catch (err: any) {
-      setError(err.message);
-      setIsSubmitting(false);
-    }
-  };
-
-  if (isSuccess) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center animate-fadeIn text-center p-8 bg-white/20 dark:bg-black/20 rounded-[3rem] border border-black/5 mt-6">
-        <div className="w-24 h-24 rounded-[2.5rem] bg-emerald-500 text-white flex items-center justify-center shadow-2xl animate-successCheck mb-8">
-          <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
-        </div>
-        <h2 className="text-4xl font-black text-[#043C5C] dark:text-slate-100 tracking-tighter mb-4">Success</h2>
-        <p className="text-slate-500 dark:text-slate-400 font-medium max-w-[200px] leading-relaxed">
-          Your reservation has been recorded in the campus registry.
-        </p>
-        <div className="mt-12 flex flex-col w-full gap-4 animate-slideUp">
-          <Button variant="primary" onClick={onNavigateHome} className="shadow-2xl font-black uppercase tracking-widest py-4">Dashboard</Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="py-4 animate-slideUp">
-      <div className="mb-8 mt-2">
-        <h3 className="text-3xl font-black text-[#043C5C] dark:text-slate-100 tracking-tight">Reserve Slot</h3>
-        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Campus Venue Registry</p>
-      </div>
-
-      <section className="mb-10 p-5 bg-white/60 dark:bg-slate-900/40 rounded-[2.5rem] border border-black/5 shadow-sm">
-        <div className="flex items-center justify-between mb-5 px-1">
-          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Venue Status</h4>
-          <div className="flex gap-4">
-            <LegendItem dot="#10B981" label="Free" />
-            <LegendItem dot="#FB923C" label="Taken" />
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {venueStatuses.map(vs => (
-            <div 
-              key={vs.id} 
-              onClick={() => setSelectedVenue(vs.id)}
-              className={`h-16 rounded-2xl flex flex-col items-center justify-center relative cursor-pointer transition-all duration-300 hover:scale-[1.05] active:scale-95 border-2 ${selectedVenue === vs.id ? 'border-blue-500 bg-blue-500/10' : 'border-transparent'}`}
-              style={{ backgroundColor: vs.status === 'AVAILABLE' ? '#10B98110' : '#FB923C10' }}
-            >
-              <div className={`w-2 h-2 rounded-full mb-2 ${vs.status === 'AVAILABLE' ? 'bg-emerald-500' : 'bg-orange-500'}`}></div>
-              <span className="text-[9px] font-black text-slate-500 dark:text-slate-300 uppercase truncate px-2 w-full text-center">{vs.name.split(' ').pop()}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <form onSubmit={handleBooking} className="space-y-6 pb-10">
-        <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-2">Select Venue</label>
-          <select 
-            value={selectedVenue} 
-            onChange={e => setSelectedVenue(e.target.value)}
-            className="w-full bg-white dark:bg-slate-900 border border-black/5 dark:border-white/5 rounded-2xl px-5 py-4 text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/10 appearance-none shadow-sm"
-          >
-            <option value="">Choose...</option>
-            {venues.map(v => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <Input label="Date" type="date" value={date} onChange={setDate} />
-        <div className="grid grid-cols-2 gap-4">
-          <Input label="From" type="time" value={start} onChange={setStart} />
-          <Input label="To" type="time" value={end} onChange={setEnd} />
-        </div>
-        <Input label="Purpose" placeholder="e.g. CAT, Group Meeting..." value={purpose} onChange={setPurpose} />
-
-        {error && (
-          <div className="animate-shake p-4 rounded-2xl bg-rose-50 border border-rose-100">
-            <p className="text-rose-600 text-[10px] font-black uppercase tracking-widest text-center">{error}</p>
-          </div>
-        )}
-
-        <Button disabled={isSubmitting || isConflict} type="submit" className="w-full !py-5 shadow-2xl mt-4 font-black uppercase tracking-[0.2em] text-lg rounded-[2rem]">
-          {isSubmitting ? 'Recording...' : 'Request Slot'}
-        </Button>
-      </form>
-    </div>
-  );
-}

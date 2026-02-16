@@ -51,6 +51,7 @@ export interface Booking {
   status: BookingStatus;
   userName?: string;
   venueName?: string;
+  recurringGroupId?: string; // Links related recurring bookings
 }
 
 export interface AppState {

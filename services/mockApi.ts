@@ -70,15 +70,40 @@ export const mockApi = {
     if (role === UserRole.STUDENT) throw new Error('Students are not authorized to book venues.');
     
     const conflict = mockApi.checkConflict(booking.venueId, booking.date, booking.startTime, booking.endTime);
-    if (conflict) throw new Error('Venue is already booked for this time slot.');
+    if (conflict) throw new Error(`Venue is already booked on ${booking.date} for this time slot.`);
 
     const newBooking: Booking = {
       ...booking,
-      id: `b${Date.now()}`,
+      id: `b${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       status: role === UserRole.ADMIN ? BookingStatus.CONFIRMED : BookingStatus.PENDING,
     };
     dbBookings.push(newBooking);
     return newBooking;
+  },
+
+  createRecurringBooking: async (baseBooking: Omit<Booking, 'id' | 'status' | 'date'>, dates: string[], role: UserRole): Promise<Booking[]> => {
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    if (role === UserRole.STUDENT) throw new Error('Students are not authorized to book venues.');
+
+    // Check conflicts for ALL dates first
+    for (const date of dates) {
+      if (mockApi.checkConflict(baseBooking.venueId, date, baseBooking.startTime, baseBooking.endTime)) {
+        throw new Error(`Conflict detected on ${date}. Series booking cancelled.`);
+      }
+    }
+
+    const groupId = `group-${Date.now()}`;
+    const newBookings: Booking[] = dates.map(date => ({
+      ...baseBooking,
+      id: `b${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      date,
+      status: role === UserRole.ADMIN ? BookingStatus.CONFIRMED : BookingStatus.PENDING,
+      recurringGroupId: groupId
+    }));
+
+    dbBookings.push(...newBookings);
+    return newBookings;
   },
 
   updateBookingStatus: async (id: string, status: BookingStatus): Promise<void> => {
